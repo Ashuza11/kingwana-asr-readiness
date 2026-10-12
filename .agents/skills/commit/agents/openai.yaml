@@ -1,0 +1,4 @@
+interface:
+  display_name: "Safe Git Commit"
+  short_description: "Review staged changes and propose a privacy-safe commit"
+  default_prompt: "Use $commit to inspect staged changes and propose a conventional commit message."

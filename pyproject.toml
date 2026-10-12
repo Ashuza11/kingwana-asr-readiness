@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kingwana-asr-readiness"
+version = "0.1.0"
+description = "Reproducible evaluation of open-source ASR models on private Kingwana small-business speech."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "All rights reserved" }
+authors = [{ name = "Kingwana ASR Readiness research team" }]
+dependencies = [
+  "jiwer>=3.1,<4",
+  "pydantic>=2.9,<3",
+  "PyYAML>=6.0,<7",
+  "rich>=13.9,<15",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+audio = ["soundfile>=0.12,<1"]
+asr = [
+  "accelerate>=1.2,<2",
+  "huggingface-hub>=0.27,<1",
+  "numpy>=1.26,<3",
+  "torch>=2.5,<3",
+  "torchaudio>=2.5,<3",
+  "transformers>=4.47,<5",
+]
+omnilingual = ["omnilingual-asr>=0.2,<1"]
+dev = ["pytest>=8.3,<9", "pytest-cov>=6,<8", "ruff>=0.8,<1"]
+
+[project.scripts]
+kingwana-asr = "kingwana_asr.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kingwana_asr"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

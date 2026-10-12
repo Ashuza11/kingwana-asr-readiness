@@ -1,0 +1,52 @@
+# Private research data: never commit participant audio or metadata.
+data/private/**
+!data/private/.gitkeep
+data/processed/**
+!data/processed/.gitkeep
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+
+# Secrets and local configuration.
+.env
+.env.*
+!.env.example
+
+# Generated benchmark outputs and reports.
+outputs/**
+!outputs/.gitkeep
+reports/tables/**
+!reports/tables/.gitkeep
+reports/figures/**
+!reports/figures/.gitkeep
+
+# Python and test artifacts.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Model caches, experiment trackers, and weights.
+.cache/
+huggingface/
+wandb/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Editors and operating systems.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

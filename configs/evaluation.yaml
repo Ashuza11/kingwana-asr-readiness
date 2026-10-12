@@ -1,0 +1,14 @@
+schema_version: 1
+seed: 42
+normalization:
+  unicode_form: NFC
+  lowercase: true
+  remove_punctuation: true
+  normalize_whitespace: true
+  preserve_lexical_forms: true
+metrics:
+  cer_includes_whitespace: true
+  minimum_scenario_clips: 1
+manifest:
+  version: evaluation_v0.1
+  reference_column: reference_eval
