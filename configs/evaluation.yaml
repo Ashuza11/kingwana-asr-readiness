@@ -12,3 +12,27 @@ metrics:
 manifest:
   version: evaluation_v0.1
   reference_column: reference_eval
+labels:
+  primary_language:
+    name: Kingwana (Congolese Swahili / Bukavu Swahili)
+    iso_639_3: swc
+    glottocode: cong1236
+    source_aliases:
+      Swahili: swc
+      Kiswahili: swc
+      Swahil: swc
+      French: fr
+      Frenchie: fr
+      English: en
+  noise_level:
+    low: [Low, low, quiet]
+    medium: [medium, moderate]
+    high: [high, very_high]
+    unknown: [ambiguous, unknown]
+  code_switching:
+    available_positive: present
+    available_negative: none
+    unavailable: [ambiguous, unknown]
+  quality_rating:
+    include_all: true
+    missing_label: unknown

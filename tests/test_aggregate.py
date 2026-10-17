@@ -44,8 +44,31 @@ def test_string_false_code_switch_value_is_not_treated_as_true() -> None:
     assert set(report["by_code_switch"]) == {"not_code_switched"}
 
 
+@pytest.mark.parametrize("value", ["unknown", "ambiguous", None])
+def test_unavailable_code_switch_value_is_excluded(value: object) -> None:
+    record = prediction("c1", "S1", "moja", "moja", "sale")
+    record["code_switched"] = value
+    report = aggregate_predictions([record])
+    assert report["by_code_switch"] == {}
+
+
 def test_invalid_code_switch_value_fails_loudly() -> None:
     record = prediction("c1", "S1", "moja", "moja", "sale")
-    record["code_switched"] = "unknown"
+    record["code_switched"] = "sometimes"
     with pytest.raises(ValueError, match="Invalid code_switched"):
         aggregate_predictions([record])
+
+
+def test_optional_annotation_strata_are_aggregated() -> None:
+    record = prediction("c1", "S1", "moja", "moja", "sale")
+    record.update(
+        code_switch_status="ambiguous",
+        languages="swc+fr",
+        noise_level="medium",
+        quality_rating="2",
+    )
+    report = aggregate_predictions([record])
+    assert set(report["by_code_switch_status"]) == {"ambiguous"}
+    assert set(report["by_language_mix"]) == {"swc+fr"}
+    assert set(report["by_noise_level"]) == {"medium"}
+    assert set(report["by_quality_rating"]) == {"2"}

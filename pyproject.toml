@@ -19,16 +19,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-audio = ["soundfile>=0.12,<1"]
+audio = ["librosa>=0.10,<1", "soundfile>=0.12,<1"]
 asr = [
   "accelerate>=1.2,<2",
   "huggingface-hub>=0.27,<1",
   "numpy>=1.26,<3",
-  "torch>=2.5,<3",
-  "torchaudio>=2.5,<3",
+  "torch==2.8.0",
+  "torchaudio==2.8.0",
   "transformers>=4.47,<5",
 ]
-omnilingual = ["omnilingual-asr>=0.2,<1"]
+omnilingual = ["omnilingual-asr==0.2.0", "pyarrow==20.0.0"]
 dev = ["pytest>=8.3,<9", "pytest-cov>=6,<8", "ruff>=0.8,<1"]
 
 [project.scripts]

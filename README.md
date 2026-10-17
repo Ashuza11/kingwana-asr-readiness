@@ -24,9 +24,12 @@ The planned primary benchmark contains exactly these systems:
 | `omnilingual_ctc_1b` | `facebook/omniASR-CTC-1B` | Modern massively multilingual baseline |
 | `xlsr_swahili` | `thinkKenya/wav2vec2-large-xls-r-300m-sw` | Swahili-specific baseline |
 
-`configs/models.yaml` records intended language configuration. Phase 1 does not contain inference
-adapters or download model weights. Each adapter will be checked against its official
-implementation and the effective configuration persisted in run metadata before it is enabled.
+`configs/models.yaml` records intended language configuration. All five primary models have
+executable adapters. Each adapter is checked against its official implementation and the
+effective configuration is persisted in run metadata before use. MMS uses its explicit `swh`
+adapter. OmniASR CTC does not accept language conditioning, so its metadata distinguishes the
+Kingwana evaluation language (`swc`) from the closest supported label (`swh_Latn`) without
+passing an ignored language argument.
 
 ## Privacy and data governance
 
@@ -73,9 +76,23 @@ clip_id,speaker_id,audio_path,duration_s,reference_verbatim,reference_eval,scena
 ```
 
 Paths may be absolute or relative to the manifest. Validation rejects missing files, duplicate
-clip IDs, empty gold text, unknown or malformed fields, invalid booleans, and non-positive
-duration; it reports total duration and counts by speaker/scenario. The committed example contains
-fictional rows only and intentionally references nonexistent files.
+clip IDs, empty gold text, unknown or malformed fields, invalid code-switch labels, and
+non-positive duration; it reports total duration and counts by speaker/scenario. Code-switch
+labels may be true, false, ambiguous, or unknown; the unavailable labels are excluded from that
+breakdown. The committed example contains fictional rows only and intentionally references
+nonexistent files. Real manifests are Git-ignored because they contain private transcripts.
+
+The verified private SautiForge pilot export contains 500 clips, 10 pseudonymous speakers, five
+balanced scenarios, and 3,645.319 seconds of declared audio. Build the full and deterministic
+evaluation and deterministic one-clip preflight manifests without changing the export:
+
+```bash
+uv run python scripts/build_sautiforge_manifests.py \
+  --export-root data/private/sautiforge-kingwana-pilot-2026-10-16 \
+  --evaluation-manifest data/manifests/evaluation_v0.1.csv \
+  --smoke-manifest data/manifests/smoke_v0.1_1clip_source.csv \
+  --smoke-size 1 --seed 42
+```
 
 ```bash
 uv run python -m kingwana_asr.cli validate \
@@ -92,36 +109,72 @@ or alter vocabulary based on predictions. `reference_verbatim` is preserved; `re
 the scoring source. CER currently includes normalized spaces, as recorded in
 `configs/evaluation.yaml`.
 
+Corpus language labels use **Kingwana (Congolese Swahili / Bukavu Swahili)** with ISO 639-3
+`swc`; French and English use `fr` and `en`. Raw export spellings remain in provenance columns.
+This corpus label is distinct from the Standard Swahili (`swh`) proxy required by some benchmark
+model APIs. Noise labels are canonicalized to `low`, `medium`, `high`, or `unknown`, with the raw
+value retained. Every audio-quality rating remains eligible and is retained for later stratified
+reporting.
+
 The evaluation layer wraps `jiwer` and provides corpus-micro WER/CER, per-speaker WER/CER,
-speaker-macro WER/CER, per-scenario results, and code-switch group results. Failed predictions are
-rejected from scoring rather than silently omitted. Entity metrics are intentionally deferred.
+speaker-macro WER/CER, per-scenario results, annotated code-switch status, canonical language-mix,
+noise-level, and audio-quality strata. A binary code-switch comparison includes only definitive
+`present`/`none` labels; ambiguous and unknown labels remain visible in the categorical report.
+Failed predictions are rejected from scoring rather than silently omitted. Entity metrics are
+intentionally deferred.
 
-## Planned smoke test and model runs
+## One-clip preflight and model runs
 
-Inference is not available in Phase 1. Phase 2 will add Whisper Large v3 first and exercise only a
-small, balanced selection (about 20 clips across speakers/scenarios) after the researcher supplies
-a valid private manifest. The smoke test must verify download/load, language configuration,
-device, non-empty output, safe persistence, resumability, and clip/model alignment before a full
-run.
+The local preflight manifest selects one clear, representative clip. Each model's first run uses
+this same standardized clip to verify
+download/load, language configuration, device, non-empty output, safe persistence, resumability,
+and clip/model alignment before any full run.
 
 The intended later commands are:
 
 ```bash
 python -m kingwana_asr.cli transcribe --model whisper_large_v3 \
-  --manifest data/manifests/evaluation_v0.1.csv --limit 20
+  --manifest data/manifests/smoke_v0.1_1clip.csv
 python -m kingwana_asr.cli evaluate \
-  --manifest data/manifests/evaluation_v0.1.csv
+  --manifest data/manifests/evaluation_v0.1_analysis.csv
 ```
 
-These are the target interface and are not exposed until implemented. No multi-gigabyte checkpoint
-is downloaded during foundation setup.
+The `transcribe` command supports `--device`, `--limit`, repeatable `--clip-id`, and `--force`.
+Attempts are appended safely to JSONL, while `predictions.csv` and `run_metadata.json` are written
+atomically under `outputs/<model_key>/`. Successful model/clip pairs are skipped on resume and
+per-clip errors are logged without ending the run. No checkpoint is downloaded during setup or
+tests.
+
+Full inference uses the source-preserving 16 kHz WAV manifest
+`evaluation_v0.1_standardized.csv`. The derived private `evaluation_v0.1_analysis.csv` retains
+those exact clip IDs, references, paths, and decoded durations while adding the approved canonical
+language/noise labels, their raw source labels, code-switch status, and quality rating. This keeps
+inference inputs distinct from analysis annotations. Both manifests and all prediction files are
+Git-ignored private research artifacts.
+
+Evaluation validates exact manifest coverage, model IDs, speakers, references, prediction status,
+and duplicate keys before atomically exporting tables under `reports/tables/`. Missing or failed
+clips stop scoring instead of producing partial results.
+
+Prepare source-preserving 16 kHz mono PCM WAV derivatives with FFmpeg:
+
+```bash
+uv run python scripts/prepare_audio.py \
+  --manifest data/manifests/smoke_v0.1_1clip_source.csv \
+  --output-dir data/processed/smoke_v0.1_1clip \
+  --output-manifest data/manifests/smoke_v0.1_1clip.csv \
+  --dry-run
+```
+
+Remove `--dry-run` only after reviewing the deterministic destinations. Existing files and source
+paths are never overwritten.
 
 ## Compute backends
 
 The core package remains a normal Linux/WSL Python project. Kaggle and Colab will install this same
-package rather than fork benchmark logic. Modal support is deferred until the local architecture
-is stable; see [`modal/README.md`](modal/README.md) for the data-transfer warning. Nothing
-configures secrets or uploads participant recordings automatically.
+package rather than fork benchmark logic. Modal is a thin GPU backend around the shared inference
+pipeline; see [`modal/README.md`](modal/README.md) for the data-transfer warning. Nothing creates
+secrets or uploads participant recordings automatically.
 
 ## Reproducibility policy
 
@@ -133,7 +186,12 @@ unless `--force` is explicitly used.
 
 ## Current status
 
-Phase 1 foundation is implemented: packaging, privacy controls, model/evaluation configuration,
-strict manifest parsing and validation, normalization, WER/CER, aggregation, prediction schema,
-CLI validation, and synthetic unit tests. Audio conversion, device management, model adapters,
-resumable inference, report export, and cloud execution remain intentionally deferred.
+The foundation and all five primary model adapters are complete. Source-preserving audio
+preparation, device selection, per-clip failure isolation, incremental prediction storage,
+resume/force behavior, and preflight selection controls are implemented. Whisper Large v3,
+SunflowerASR-51, MMS-1B-All, OmniASR CTC 1B, and XLS-R Swahili have all passed the same one-clip
+Modal engineering preflight and the 500-clip evaluation on an NVIDIA L4. Each model has 500
+successful, manifest-aligned, non-empty persisted predictions and an empty error log. Private model
+outputs are downloaded under `outputs/<model_key>/`; the eight local evaluation tables cover global,
+speaker, scenario, code-switch, language-mix, noise, and quality analyses. Entity scoring remains a
+future extension.

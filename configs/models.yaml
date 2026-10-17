@@ -37,7 +37,9 @@ models:
     hf_id: facebook/omniASR-CTC-1B
     family: omnilingual
     model_card: omniASR_CTC_1B
-    language: swh_Latn
+    evaluation_language: swc
+    closest_supported_language: swh_Latn
+    language_conditioning: none
     decoding:
       strategy: ctc_greedy
 
@@ -47,5 +49,6 @@ models:
     hf_id: thinkKenya/wav2vec2-large-xls-r-300m-sw
     family: wav2vec2
     language: sw
+    evaluation_language: swc
     decoding:
       strategy: ctc_greedy

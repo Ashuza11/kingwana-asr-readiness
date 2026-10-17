@@ -3,6 +3,20 @@ data/private/**
 !data/private/.gitkeep
 data/processed/**
 !data/processed/.gitkeep
+data/*.zip
+data/**/*.zip
+# Generated manifests contain private research annotations unless approved for release.
+data/manifests/*.csv
+!data/manifests/*.example.csv
+data/manifests/evaluation_*.provenance.json
+data/manifests/smoke_*.provenance.json
+data/**/*.jsonl
+data/**/*.parquet
+data/**/*.tsv
+data/**/*.xls
+data/**/*.xlsx
+data/**/*.sqlite*
+data/**/*.db
 *.wav
 *.mp3
 *.m4a
@@ -13,10 +27,24 @@ data/processed/**
 .env
 .env.*
 !.env.example
+.secrets/
+secrets/
+credentials*.json
+service-account*.json
+*.pem
+*.key
+.netrc
+.modal/
+.modal.toml
+.huggingface/
 
 # Generated benchmark outputs and reports.
 outputs/**
 !outputs/.gitkeep
+**/predictions.csv
+**/predictions.jsonl
+**/run_metadata.json
+**/errors.log
 reports/tables/**
 !reports/tables/.gitkeep
 reports/figures/**

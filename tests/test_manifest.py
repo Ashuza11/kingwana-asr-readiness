@@ -96,8 +96,28 @@ def test_invalid_boolean_fails_loudly(tmp_path: Path) -> None:
     audio.touch()
     manifest = tmp_path / "evaluation.csv"
     write_manifest(manifest, [row(audio, code_switched="sometimes")])
-    with pytest.raises(ManifestError, match="code_switched must be one of"):
+    with pytest.raises(ManifestError, match="code_switched must be true/present"):
         read_manifest(manifest)
+
+
+@pytest.mark.parametrize("value", ["ambiguous", "unknown"])
+def test_unavailable_code_switch_label_is_preserved(tmp_path: Path, value: str) -> None:
+    audio = tmp_path / "fixture.audio"
+    audio.touch()
+    manifest = tmp_path / "evaluation.csv"
+    write_manifest(manifest, [row(audio, code_switched=value)])
+    assert read_manifest(manifest)[0].code_switched is None
+
+
+@pytest.mark.parametrize(("value", "expected"), [("present", True), ("none", False)])
+def test_source_code_switch_labels_are_supported(
+    tmp_path: Path, value: str, expected: bool
+) -> None:
+    audio = tmp_path / "fixture.audio"
+    audio.touch()
+    manifest = tmp_path / "evaluation.csv"
+    write_manifest(manifest, [row(audio, code_switched=value)])
+    assert read_manifest(manifest)[0].code_switched is expected
 
 
 @pytest.mark.parametrize("duration", ["0", "-1", "nan", "inf", "-inf"])

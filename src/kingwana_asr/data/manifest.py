@@ -21,6 +21,10 @@ REQUIRED_COLUMNS = (
 )
 
 OPTIONAL_COLUMNS = (
+    "languages_raw",
+    "code_switch_status",
+    "noise_level_raw",
+    "quality_rating",
     "amount_present",
     "amount_gold",
     "currency_gold",
@@ -31,6 +35,7 @@ OPTIONAL_COLUMNS = (
 
 TRUE_VALUES = {"true", "1", "yes"}
 FALSE_VALUES = {"false", "0", "no"}
+UNAVAILABLE_VALUES = {"ambiguous", "unknown"}
 
 
 class ManifestError(ValueError):
@@ -48,6 +53,24 @@ def parse_bool(value: str, *, field: str, row_number: int) -> bool:
     )
 
 
+def parse_optional_bool(value: str, *, field: str, row_number: int) -> bool | None:
+    """Parse a boolean while preserving explicitly unavailable annotations."""
+    normalized = value.strip().lower()
+    if normalized in UNAVAILABLE_VALUES:
+        return None
+    if normalized == "present":
+        return True
+    if normalized == "none":
+        return False
+    try:
+        return parse_bool(value, field=field, row_number=row_number)
+    except ManifestError as exc:
+        raise ManifestError(
+            f"Row {row_number}: {field} must be true/present, false/none, ambiguous, "
+            f"or unknown; got {value!r}"
+        ) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class ManifestRow:
     clip_id: str
@@ -58,7 +81,7 @@ class ManifestRow:
     reference_eval: str
     scenario: str
     languages: str
-    code_switched: bool
+    code_switched: bool | None
     noise_level: str
     source_row: int
 
@@ -124,7 +147,7 @@ def read_manifest(path: Path) -> list[ManifestRow]:
                         reference_eval=_required_text(row, "reference_eval", row_number),
                         scenario=_required_text(row, "scenario", row_number),
                         languages=_required_text(row, "languages", row_number),
-                        code_switched=parse_bool(
+                        code_switched=parse_optional_bool(
                             _required_text(row, "code_switched", row_number),
                             field="code_switched",
                             row_number=row_number,
