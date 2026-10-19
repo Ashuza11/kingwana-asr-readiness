@@ -1,0 +1,91 @@
+schema_version: 1
+
+# Researcher-approved product/service mappings. Lists represent entity sets;
+# null means that no product/service entity is applicable for scoring.
+product_or_service:
+  source_to_canonical:
+    airtime: [airtime]
+    sim_card: [sim_card]
+    phone_charger: [phone_charger]
+    mobile_data: [mobile_data]
+    phone_battery: [phone_battery]
+    wireless_earbuds: [wireless_earbuds]
+    phone_case: [phone_case]
+    usb: [usb]
+    phone_screen: [phone_screen]
+    "Unités téléphonique": [airtime]
+    AIRTIME: [airtime]
+    "Cable USB": [usb]
+    "Batérie de téléphone": [phone_battery]
+    "Sim carte": [sim_card]
+    Chargeur: [phone_charger]
+    "airtime,sim_card": [airtime, sim_card]
+    "sim_card,airtime": [airtime, sim_card]
+    "airtime;sim_card": [airtime, sim_card]
+    "phone_charger,usb": [phone_charger, usb]
+    "Chargeur, Sim flash": [phone_charger, sim_card]
+    "sim_card,phone_charger": [phone_charger, sim_card]
+    "mobile_data,airtime": [airtime, mobile_data]
+    "mobile_data,aitime": [airtime, mobile_data]
+    "sim_card,phone_battery": [phone_battery, sim_card]
+    "phone_battery,sim_card": [phone_battery, sim_card]
+    "phone_screen,phone_case": [phone_case, phone_screen]
+    "phone_case,phone_screen": [phone_case, phone_screen]
+    "phone_screen,phone_screen": [phone_screen]
+    "mobile_phone,phone_battery": [mobile_phone, phone_battery]
+    unavailable: null
+
+# Currency is scored only when a currency marker is explicitly present in the
+# verbatim transcript. An inferred but unspoken currency is excluded.
+currency:
+  policy: explicitly_spoken_only
+
+# Numeric structured fields retain calculated and inferred values for later
+# structured-record evaluation. Only values explicitly present in speech are
+# eligible for ASR entity-preservation scoring.
+numeric_fields:
+  asr_entity_scoring: explicit_only
+  structured_record_origins: [explicit, calculated, inferred, corrected]
+  number_word_aliases:
+    "0": [zero, zéro]
+    "1": [moya, moja]
+    "2": [mbili]
+    "3": [tatu]
+    "4": [ine, nne]
+    "5": [tano]
+
+# Payment methods are gold only when the method itself is explicitly spoken.
+# Generic payment verbs such as "alilipa" or "anatuma" are insufficient.
+payment_method:
+  policy: explicitly_spoken_only
+  exclude_source_values: [unknown, unavailable, ambiguous]
+  explicit_patterns:
+    cash: "\\bcash\\b"
+    mobile_money: "\\b(?:airtel|orange)\\s+money\\b|\\bvirtuel(?:le)?\\b"
+
+# Exact aliases used by the strict automatic entity-preservation scorer. No
+# fuzzy spelling correction is performed; borderline variants belong in the
+# manual linguistic review.
+entity_scoring:
+  currency:
+    CDF: [CDF, FC, franc, francs]
+    USD: [USD, "$", dollar, dollars]
+  product_service:
+    airtime: [airtime, unité, unités, unite, unites, crédit, credit]
+    sim_card: [sim, sim_card, "sim card", "sim flash", "carte sim"]
+    phone_charger: [chargeur, charger]
+    mobile_data: [giga, gigabyte, mega, mégas, megas]
+    phone_battery: [batterie, baterie, battery]
+    wireless_earbuds: [écouteur, écouteurs, ecouteur, ecouteurs, airpod, airpods, earbuds]
+    phone_case: [pochette, coque, case, casck]
+    usb: [usb, "câble usb", "cable usb"]
+    phone_screen: [screen, écran, ecran]
+    mobile_phone: [téléphone, telephone, phone]
+  operator:
+    airtel: [airtel]
+    orange: [orange]
+    vodacom: [vodacom, vodacome, voda]
+    africell: [africell, africel]
+  payment_method:
+    cash: [cash]
+    mobile_money: ["airtel money", "orange money", "mobile money", virtuel, virtuelle]

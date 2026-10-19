@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,17 @@ def _load_dependencies() -> tuple[Any, Any, Any]:
             "`uv sync --extra asr --extra omnilingual`"
         ) from exc
     return torch, ASRInferencePipeline, model_info
+
+
+def _load_audio_dependencies() -> tuple[Any, Any]:
+    try:
+        import numpy
+        import soundfile
+    except ImportError as exc:
+        raise ModelDependencyError(
+            "NumPy and SoundFile are required for OmniASR audio chunking"
+        ) from exc
+    return numpy, soundfile
 
 
 class OmnilingualASRModel(ASRModel):
@@ -45,6 +57,9 @@ class OmnilingualASRModel(ASRModel):
             raise ValueError("OmniASR CTC does not support language conditioning")
         if self.decoding.get("strategy") != "ctc_greedy":
             raise ValueError("OmniASR CTC requires deterministic CTC greedy decoding")
+        self.chunk_seconds = float(self.decoding.get("chunk_seconds", 30.0))
+        if not 0 < self.chunk_seconds < 40:
+            raise ValueError("OmniASR chunk_seconds must be greater than zero and below 40")
         self.model_revision: str | None = None
         self.device_spec: DeviceSpec | None = None
         self._torch: Any | None = None
@@ -59,7 +74,8 @@ class OmnilingualASRModel(ASRModel):
         return (
             f"evaluation_language={self.evaluation_language};"
             f"closest_supported_language={self.closest_supported_language};"
-            "language_conditioning=none;decoding=ctc_greedy"
+            "language_conditioning=none;decoding=ctc_greedy;"
+            f"chunk_seconds={self.chunk_seconds:g}"
         )
 
     def load(self) -> None:
@@ -95,11 +111,37 @@ class OmnilingualASRModel(ASRModel):
             raise RuntimeError("Model must be loaded before transcription")
         if not audio_path.is_file():
             raise FileNotFoundError(f"Audio file does not exist: {audio_path}")
-        # Do not pass `lang`: Meta's CTC pipeline explicitly ignores it.
-        results = self._pipeline.transcribe([str(audio_path)], batch_size=1)
-        if len(results) != 1:
+        numpy, soundfile = _load_audio_dependencies()
+        info = soundfile.info(audio_path)
+        chunk_frames = int(info.samplerate * self.chunk_seconds)
+        if info.frames <= chunk_frames:
+            paths = [str(audio_path)]
+            temporary_directory = None
+        else:
+            audio, sample_rate = soundfile.read(audio_path, dtype="float32", always_2d=True)
+            mono = numpy.mean(audio, axis=1)
+            temporary_directory = tempfile.TemporaryDirectory(prefix="omniasr-chunks-")
+            chunk_root = Path(temporary_directory.name)
+            paths = []
+            for index, start in enumerate(range(0, len(mono), chunk_frames)):
+                chunk_path = chunk_root / f"chunk-{index:04d}.wav"
+                soundfile.write(
+                    chunk_path,
+                    mono[start : start + chunk_frames],
+                    sample_rate,
+                    format="WAV",
+                    subtype="PCM_16",
+                )
+                paths.append(str(chunk_path))
+        try:
+            # Do not pass `lang`: Meta's CTC pipeline explicitly ignores it.
+            results = self._pipeline.transcribe(paths, batch_size=1)
+        finally:
+            if temporary_directory is not None:
+                temporary_directory.cleanup()
+        if len(results) != len(paths):
             raise RuntimeError("OmniASR returned an invalid number of results")
-        return str(results[0]).strip()
+        return " ".join(str(result).strip() for result in results if str(result).strip())
 
     def unload(self) -> None:
         self._pipeline = None

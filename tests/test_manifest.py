@@ -120,6 +120,30 @@ def test_source_code_switch_labels_are_supported(
     assert read_manifest(manifest)[0].code_switched is expected
 
 
+def test_reviewed_code_switch_provenance_columns_are_allowed(tmp_path: Path) -> None:
+    audio = tmp_path / "fixture.audio"
+    audio.touch()
+    manifest = tmp_path / "evaluation.csv"
+    payload = row(audio, code_switched="false")
+    payload.update(
+        {
+            "code_switch_status": "none",
+            "code_switched_original": "ambiguous",
+            "code_switch_status_original": "ambiguous",
+            "code_switch_reviewed": "none",
+            "code_switch_evidence": "",
+            "code_switch_review_reason": "integrated vocabulary",
+            "code_switch_review_status": "rule_assigned",
+        }
+    )
+    with manifest.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(payload))
+        writer.writeheader()
+        writer.writerow(payload)
+
+    assert read_manifest(manifest)[0].code_switched is False
+
+
 @pytest.mark.parametrize("duration", ["0", "-1", "nan", "inf", "-inf"])
 def test_invalid_duration_fails_loudly(tmp_path: Path, duration: str) -> None:
     audio = tmp_path / "fixture.audio"

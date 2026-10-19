@@ -18,7 +18,7 @@ def config() -> dict[str, object]:
         "evaluation_language": "swc",
         "closest_supported_language": "swh_Latn",
         "language_conditioning": "none",
-        "decoding": {"strategy": "ctc_greedy"},
+        "decoding": {"strategy": "ctc_greedy", "chunk_seconds": 30.0},
     }
 
 
@@ -40,6 +40,14 @@ def test_omnilingual_ctc_uses_no_language_conditioning(
 ) -> None:
     dependencies = fake_dependencies()
     monkeypatch.setattr(omnilingual_module, "_load_dependencies", lambda: dependencies)
+    soundfile = SimpleNamespace(
+        info=Mock(return_value=SimpleNamespace(samplerate=16_000, frames=1))
+    )
+    monkeypatch.setattr(
+        omnilingual_module,
+        "_load_audio_dependencies",
+        lambda: (SimpleNamespace(mean=lambda audio, axis: audio), soundfile),
+    )
     audio = tmp_path / "synthetic.wav"
     audio.touch()
     adapter = OmnilingualASRModel("omnilingual_ctc_1b", config(), device="cpu")
@@ -55,7 +63,7 @@ def test_omnilingual_ctc_uses_no_language_conditioning(
     pipeline.transcribe.assert_called_once_with([str(audio)], batch_size=1)
     assert adapter.language_config == (
         "evaluation_language=swc;closest_supported_language=swh_Latn;"
-        "language_conditioning=none;decoding=ctc_greedy"
+        "language_conditioning=none;decoding=ctc_greedy;chunk_seconds=30"
     )
     assert adapter.model_revision == "omni-revision"
 
@@ -75,3 +83,37 @@ def test_omnilingual_rejects_misleading_language_configuration(
     values[field] = value
     with pytest.raises(ValueError, match=message):
         OmnilingualASRModel("omnilingual_ctc_1b", values)
+
+
+def test_omnilingual_chunks_audio_above_package_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dependencies = fake_dependencies()
+    pipeline = dependencies[1].return_value
+    pipeline.transcribe.return_value = ["sehemu moja", "sehemu mbili"]
+    monkeypatch.setattr(omnilingual_module, "_load_dependencies", lambda: dependencies)
+    audio = tmp_path / "long.wav"
+    audio.touch()
+
+    def write(path: Path, *_args: object, **_kwargs: object) -> None:
+        Path(path).touch()
+
+    soundfile = SimpleNamespace(
+        info=Mock(return_value=SimpleNamespace(samplerate=2, frames=70)),
+        read=Mock(return_value=([0.0] * 70, 2)),
+        write=Mock(side_effect=write),
+    )
+    monkeypatch.setattr(
+        omnilingual_module,
+        "_load_audio_dependencies",
+        lambda: (SimpleNamespace(mean=lambda audio, axis: audio), soundfile),
+    )
+    adapter = OmnilingualASRModel("omnilingual_ctc_1b", config(), device="cpu")
+
+    adapter.load()
+    prediction = adapter.transcribe(audio)
+
+    assert prediction == "sehemu moja sehemu mbili"
+    paths = pipeline.transcribe.call_args.args[0]
+    assert len(paths) == 2
+    assert pipeline.transcribe.call_args.kwargs == {"batch_size": 1}

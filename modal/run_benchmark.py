@@ -70,18 +70,20 @@ app = modal.App(APP_NAME)
 def transcribe_remote(
     model_key: str,
     manifest_path: str,
+    output_namespace: str,
     limit: int | None = None,
     force: bool = False,
 ) -> dict:
     """Run the normal resumable transcription pipeline on one Modal GPU."""
     from kingwana_asr.inference import run_transcription
 
+    namespace = _safe_key(output_namespace, field="output_namespace")
     try:
         summary = run_transcription(
             model_key=model_key,
             manifest=Path(manifest_path),
             models_config=Path("/root/configs/models.yaml"),
-            output_root=REMOTE_OUTPUT_ROOT,
+            output_root=REMOTE_OUTPUT_ROOT / namespace,
             device="cuda",
             limit=limit,
             force=force,
@@ -98,13 +100,126 @@ def transcribe_remote(
         cache_volume.commit()
 
 
+@app.function(
+    image=image,
+    cpu=4.0,
+    memory=8_192,
+    timeout=7_200,
+    volumes={str(REMOTE_DATA_ROOT): data_volume, "/cache": cache_volume},
+    env={
+        "HF_HOME": "/cache/huggingface",
+        "HF_HUB_CACHE": "/cache/huggingface/hub",
+    },
+    secrets=[hf_secret],
+)
+def prepare_tico19_remote(dataset_key: str) -> dict:
+    """Download the pinned public test shards and standardize them inside Modal."""
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor
+
+    import soundfile
+    from huggingface_hub import hf_hub_download
+
+    from kingwana_asr.data.audio import prepare_audio
+    from kingwana_asr.data.sautiforge import write_manifest_rows
+    from kingwana_asr.data.tico19 import (
+        TICO19_DATASET_ID,
+        TICO19_REVISION,
+        TICO19_TEST_SHARDS,
+        prepare_tico19_test,
+    )
+    from kingwana_asr.data.validation import validate_manifest
+
+    dataset_key = _safe_key(dataset_key, field="dataset_key")
+    work_root = Path("/tmp/tico19-preparation")
+    shard_dir = work_root / "shards"
+    source_audio_dir = work_root / "source_audio"
+    source_manifest = work_root / "source_manifest.csv"
+    source_provenance = work_root / "source_provenance.json"
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    for filename in TICO19_TEST_SHARDS:
+        cached = Path(
+            hf_hub_download(
+                repo_id=TICO19_DATASET_ID,
+                repo_type="dataset",
+                revision=TICO19_REVISION,
+                filename=f"data/read/{filename}",
+            )
+        )
+        shutil.copyfile(cached, shard_dir / filename)
+
+    prepared = prepare_tico19_test(
+        shard_dir,
+        source_audio_dir,
+        source_manifest,
+        source_provenance,
+        force=True,
+    )
+    with source_manifest.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, strict=True)
+        if reader.fieldnames is None:
+            raise ValueError("Prepared TICO-19 manifest has no header")
+        records = list(reader)
+
+    remote_base = REMOTE_DATA_ROOT / dataset_key
+    audio_dir = remote_base / "audio_pcm16_v1"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    def standardize(row: dict[str, str]) -> dict[str, str]:
+        clip_id = _safe_key(row["clip_id"], field="clip_id")
+        source = (source_manifest.parent / row["audio_path"]).resolve()
+        destination = audio_dir / f"{clip_id}.wav"
+        if destination.exists():
+            info = soundfile.info(destination)
+            if (
+                info.samplerate != 16_000
+                or info.channels != 1
+                or info.format != "WAV"
+                or info.subtype != "PCM_16"
+            ):
+                raise ValueError(f"Existing standardized audio is invalid: {destination}")
+        else:
+            partial = destination.with_name(f"{destination.stem}.partial.wav")
+            partial.unlink(missing_ok=True)
+            prepare_audio(source, partial)
+            partial.replace(destination)
+        rewritten = dict(row)
+        rewritten["audio_path"] = str(destination)
+        return rewritten
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        standardized_rows = list(executor.map(standardize, records))
+
+    published_manifest = remote_base / "tico19_swc_test_v0.1.csv"
+    temporary_manifest = remote_base / ".tico19_swc_test_v0.1.csv.partial"
+    write_manifest_rows(temporary_manifest, standardized_rows, force=True)
+    validation = validate_manifest(temporary_manifest)
+    if validation.clip_count != prepared.clip_count:
+        raise ValueError("Standardized TICO-19 manifest row count changed unexpectedly")
+    temporary_manifest.replace(published_manifest)
+    data_volume.commit()
+    cache_volume.commit()
+    return {
+        "clips": validation.clip_count,
+        "duration_seconds": validation.total_duration_s,
+        "manifest": str(published_manifest),
+        "audio_dir": str(audio_dir),
+    }
+
+
 def _safe_key(value: str, *, field: str) -> str:
     if SAFE_KEY.fullmatch(value) is None:
         raise ValueError(f"{field} may contain only letters, numbers, dot, underscore, and dash")
     return value
 
 
-def _stage_private_manifest(local_manifest: Path, dataset_key: str, *, force: bool) -> str:
+def _stage_private_manifest(
+    local_manifest: Path,
+    dataset_key: str,
+    *,
+    force: bool,
+    limit: int | None = None,
+) -> str:
     """Upload only manifest-referenced audio plus a path-rewritten private manifest."""
     local_manifest = local_manifest.expanduser().resolve()
     if not local_manifest.is_file():
@@ -123,6 +238,10 @@ def _stage_private_manifest(local_manifest: Path, dataset_key: str, *, force: bo
         records = list(reader)
     if not records:
         raise ValueError("Manifest contains no records")
+    if limit is not None:
+        if limit <= 0:
+            raise ValueError("limit must be greater than zero")
+        records = records[:limit]
 
     uploads: list[tuple[Path, str]] = []
     seen: set[str] = set()
@@ -154,6 +273,16 @@ def _stage_private_manifest(local_manifest: Path, dataset_key: str, *, force: bo
     return f"/data{remote_manifest}"
 
 
+@app.local_entrypoint(name="prepare_tico19")
+def prepare_tico19(dataset_key: str = "tico19-swc-test-v0.1") -> None:
+    """Prepare the pinned TICO-19 test split entirely inside Modal."""
+    result = prepare_tico19_remote.remote(dataset_key)
+    print(
+        f"Prepared {result['clips']} clips ({result['duration_seconds']:.3f} seconds); "
+        f"manifest={result['manifest']}"
+    )
+
+
 @app.local_entrypoint()
 def main(
     model: str = "whisper_large_v3",
@@ -169,9 +298,14 @@ def main(
     _safe_key(dataset_key, field="dataset_key")
     remote_manifest = f"/data/{dataset_key}/{Path(manifest).name}"
     if upload:
-        remote_manifest = _stage_private_manifest(Path(manifest), dataset_key, force=force_upload)
+        remote_manifest = _stage_private_manifest(
+            Path(manifest),
+            dataset_key,
+            force=force_upload,
+            limit=limit,
+        )
         print(f"Uploaded only the {dataset_key!r} manifest and its referenced audio files.")
-    result = transcribe_remote.remote(model, remote_manifest, limit, force)
+    result = transcribe_remote.remote(model, remote_manifest, dataset_key, limit, force)
     print(
         "Modal run complete: "
         f"selected={result['selected']} completed={result['completed']} "

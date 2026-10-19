@@ -25,6 +25,15 @@ def _load_dependencies() -> tuple[Any, Any, Any]:
     return torch, (AutoModelForSpeechSeq2Seq, AutoProcessor), pipeline
 
 
+def _audio_duration_seconds(audio_path: Path) -> float:
+    try:
+        import soundfile
+    except ImportError as exc:
+        raise ModelDependencyError("SoundFile is required for Whisper duration detection") from exc
+    info = soundfile.info(audio_path)
+    return float(info.frames) / float(info.samplerate)
+
+
 class WhisperASRModel(ASRModel):
     """Single-clip adapter with explicit language and transcription task."""
 
@@ -35,6 +44,9 @@ class WhisperASRModel(ASRModel):
         self.language = str(config["language"])
         self.task = str(config.get("task", "transcribe"))
         self.decoding = dict(config.get("decoding", {}))
+        self.long_form_threshold_seconds = float(config.get("long_form_threshold_seconds", 30.0))
+        if self.long_form_threshold_seconds <= 0:
+            raise ValueError("Whisper long_form_threshold_seconds must be positive")
         self.configured_revision = config.get("revision")
         self.requested_device = device
         self.model_revision: str | None = None
@@ -49,7 +61,10 @@ class WhisperASRModel(ASRModel):
 
     @property
     def language_config(self) -> str:
-        return f"language={self.language};task={self.task}"
+        return (
+            f"language={self.language};task={self.task};"
+            f"long_form_timestamps_over_seconds={self.long_form_threshold_seconds:g}"
+        )
 
     def load(self) -> None:
         if self.is_loaded:
@@ -98,7 +113,10 @@ class WhisperASRModel(ASRModel):
             "task": self.task,
             **self.decoding,
         }
-        result = self._pipeline(str(audio_path), generate_kwargs=generate_kwargs)
+        pipeline_kwargs: dict[str, Any] = {"generate_kwargs": generate_kwargs}
+        if _audio_duration_seconds(audio_path) > self.long_form_threshold_seconds:
+            pipeline_kwargs["return_timestamps"] = True
+        result = self._pipeline(str(audio_path), **pipeline_kwargs)
         if not isinstance(result, dict) or "text" not in result:
             raise RuntimeError("Whisper pipeline returned an invalid result")
         return str(result["text"]).strip()

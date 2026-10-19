@@ -101,6 +101,59 @@ uv run python -m kingwana_asr.cli validate \
 
 Never silently replace a frozen benchmark. Add a new manifest version when data changes.
 
+### Common Voice Kingwana comparison corpus
+
+The comparison experiment uses only the official Common Voice Swahili `test.tsv` rows whose
+`variant` value is exactly `sw-kingwana`. It does not use Common Voice train/dev rows or other
+Swahili variants. Mozilla Data Collective currently distributes the Swahili release as one
+archive, so the complete archive must first be obtained under Mozilla's access terms even though
+the preparation step retains only the selected test audio locally.
+
+After placing the official archive under ignored private storage, run:
+
+```bash
+uv run python scripts/prepare_common_voice_test.py \
+  --archive data/private/common_voice/common-voice-scripted-speech-27-0-swahil-a1aabcc5.tar.gz \
+  --output-audio-dir data/private/common_voice/cv27-sw-kingwana-test/clips \
+  --manifest data/manifests/common_voice_cv27_sw_kingwana_test.csv \
+  --provenance data/manifests/common_voice_cv27_sw_kingwana_test.provenance.json
+```
+
+The command verifies the published archive SHA-256, parses only `test.tsv`, extracts only matching
+audio members, replaces public contributor identifiers with deterministic study-local pseudonyms,
+applies the unchanged project normalization, validates the resulting manifest, and records release
+provenance. It never modifies the archive and can safely reuse fully extracted clips after an
+interruption. Do not use `--skip-checksum` for the research run.
+
+### External Congolese Swahili comparison
+
+The selected external comparison is the official `test` split of
+[`CLEAR-Global/TICO-19-swc-speech`](https://huggingface.co/datasets/CLEAR-Global/TICO-19-swc-speech),
+pinned at revision `7393279cb0c4633cebe0f58b2796185852aab408`. It contains 2,124 Congolese
+Swahili (`swc`) clips from six pseudonymous speaker sessions and 39,388.240 seconds (10.9412
+hours) of medical-domain read speech. Only the three test Parquet shards are downloaded; neither
+the development split nor the related Gamayun training corpus is used.
+
+This is an external cross-corpus comparison, not a matched domain control. Differences from the
+business corpus may reflect domain, read versus scenario-guided speech, speakers, recording
+conditions, utterance length, or possible training overlap. See
+[`reports/tico19_training_overlap_audit.md`](reports/tico19_training_overlap_audit.md).
+
+Prepare the checksum-verified test shards after downloading them to private storage:
+
+```bash
+uv run python scripts/prepare_tico19_test.py \
+  --shard-dir data/private/external/tico19/test_shards \
+  --output-audio-dir data/private/external/tico19/test_audio \
+  --manifest data/manifests/tico19_swc_test_v0.1_source.csv \
+  --provenance data/manifests/tico19_swc_test_v0.1.provenance.json
+```
+
+The importer retains only the Congolese Swahili reference and embedded MP3, derives stable
+pseudonymous IDs from the dataset's session labels, applies the unchanged evaluation
+normalization, and does not retain auxiliary English/French text or translator identifiers in the
+manifest.
+
 ## Normalization and metrics
 
 The scoring transform is deterministic: Unicode NFC, lowercase, Unicode punctuation replaced by
@@ -118,10 +171,11 @@ reporting.
 
 The evaluation layer wraps `jiwer` and provides corpus-micro WER/CER, per-speaker WER/CER,
 speaker-macro WER/CER, per-scenario results, annotated code-switch status, canonical language-mix,
-noise-level, and audio-quality strata. A binary code-switch comparison includes only definitive
-`present`/`none` labels; ambiguous and unknown labels remain visible in the categorical report.
-Failed predictions are rejected from scoring rather than silently omitted. Entity metrics are
-intentionally deferred.
+noise-level, audio-quality strata, and word-level substitution/deletion/insertion counts. A binary
+code-switch comparison uses the researcher-reviewed `present`/`none` labels. Failed predictions
+are rejected from scoring rather than silently omitted. Separate reviewed workflows provide strict
+surface-preservation scores for validated business entities and human-validated qualitative error
+labels; these are not inferred from model WER.
 
 ## One-clip preflight and model runs
 
@@ -130,7 +184,7 @@ this same standardized clip to verify
 download/load, language configuration, device, non-empty output, safe persistence, resumability,
 and clip/model alignment before any full run.
 
-The intended later commands are:
+Example local commands are:
 
 ```bash
 python -m kingwana_asr.cli transcribe --model whisper_large_v3 \
@@ -178,10 +232,10 @@ secrets or uploads participant recordings automatically.
 
 ## Reproducibility policy
 
-Each later inference run will record the model ID and revision, package/PyTorch/CUDA versions,
+Each inference run records the model ID and revision, package/PyTorch/CUDA versions,
 device, dtype, decoding settings, explicit language configuration, seed, timestamp, and frozen
 manifest version. Architecture-specific decoding differences must be declared. Per-clip failures
-will be persisted and inference will continue; successful `model_id + clip_id` pairs will resume
+are persisted and inference continues; successful `model_id + clip_id` pairs resume
 unless `--force` is explicitly used.
 
 ## Current status
@@ -193,5 +247,13 @@ SunflowerASR-51, MMS-1B-All, OmniASR CTC 1B, and XLS-R Swahili have all passed t
 Modal engineering preflight and the 500-clip evaluation on an NVIDIA L4. Each model has 500
 successful, manifest-aligned, non-empty persisted predictions and an empty error log. Private model
 outputs are downloaded under `outputs/<model_key>/`; the eight local evaluation tables cover global,
-speaker, scenario, code-switch, language-mix, noise, and quality analyses. Entity scoring remains a
-future extension.
+speaker, scenario, code-switch, language-mix, noise, and quality analyses. Reviewed business-entity
+scoring and the 50-clip/five-model manual analysis are complete.
+
+The same five checkpoints have also completed the external TICO-19 Congolese Swahili test set on
+Modal: 2,124 unique aligned predictions per model, with no final failures or empty hypotheses.
+Final TICO-19 metrics and business-minus-TICO cross-corpus differences are documented in
+[`reports/submission_results_summary.md`](reports/submission_results_summary.md); the training-data
+overlap caveat is documented separately. The optional Common Voice 27 `sw-kingwana` experiment is
+deferred because Mozilla distributes the required Swahili release as a 20.89-GB archive rather than
+an independently downloadable variant subset.

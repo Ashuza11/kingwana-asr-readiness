@@ -43,6 +43,7 @@ def config() -> dict[str, object]:
         "hf_id": "openai/whisper-large-v3",
         "language": "swahili",
         "task": "transcribe",
+        "long_form_threshold_seconds": 30.0,
         "decoding": {"num_beams": 1},
     }
 
@@ -52,6 +53,7 @@ def test_whisper_uses_explicit_language_and_task(
 ) -> None:
     dependencies = fake_dependencies({"text": "  niko hapa  "})
     monkeypatch.setattr(whisper_module, "_load_dependencies", lambda: dependencies)
+    monkeypatch.setattr(whisper_module, "_audio_duration_seconds", lambda _path: 1.0)
     audio = tmp_path / "synthetic.audio"
     audio.touch()
     adapter = WhisperASRModel("whisper_large_v3", config())
@@ -81,9 +83,31 @@ def test_whisper_rejects_invalid_pipeline_result(
 ) -> None:
     dependencies = fake_dependencies({})
     monkeypatch.setattr(whisper_module, "_load_dependencies", lambda: dependencies)
+    monkeypatch.setattr(whisper_module, "_audio_duration_seconds", lambda _path: 1.0)
     audio = tmp_path / "synthetic.audio"
     audio.touch()
     adapter = WhisperASRModel("whisper_large_v3", config())
     adapter.load()
     with pytest.raises(RuntimeError, match="invalid result"):
         adapter.transcribe(audio)
+
+
+def test_whisper_enables_timestamps_for_long_form_audio(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dependencies = fake_dependencies({"text": "maandishi marefu"})
+    monkeypatch.setattr(whisper_module, "_load_dependencies", lambda: dependencies)
+    monkeypatch.setattr(whisper_module, "_audio_duration_seconds", lambda _path: 30.1)
+    audio = tmp_path / "long.wav"
+    audio.touch()
+    adapter = WhisperASRModel("whisper_large_v3", config())
+
+    adapter.load()
+    prediction = adapter.transcribe(audio)
+
+    assert prediction == "maandishi marefu"
+    dependencies[2].return_value.assert_called_once_with(
+        str(audio),
+        generate_kwargs={"language": "swahili", "task": "transcribe", "num_beams": 1},
+        return_timestamps=True,
+    )

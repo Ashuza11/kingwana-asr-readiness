@@ -23,6 +23,12 @@ REQUIRED_COLUMNS = (
 OPTIONAL_COLUMNS = (
     "languages_raw",
     "code_switch_status",
+    "code_switched_original",
+    "code_switch_status_original",
+    "code_switch_reviewed",
+    "code_switch_evidence",
+    "code_switch_review_reason",
+    "code_switch_review_status",
     "noise_level_raw",
     "quality_rating",
     "amount_present",

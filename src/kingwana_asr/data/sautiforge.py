@@ -96,6 +96,50 @@ def current_revisions(records: Iterable[dict[str, Any]], *, label: str) -> list[
     return [record for record in materialized if str(record["id"]) not in superseded]
 
 
+def apply_transcript_corrections(
+    rows: list[dict[str, str]], corrections_path: Path
+) -> list[dict[str, str]]:
+    """Apply researcher-confirmed transcript corrections without changing the export."""
+
+    with corrections_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle, strict=True)
+        required = {
+            "clip_id",
+            "original_reference_verbatim",
+            "corrected_reference_verbatim",
+            "notes",
+        }
+        if reader.fieldnames is None:
+            raise ManifestError(f"Transcript corrections have no header: {corrections_path}")
+        missing = required - set(reader.fieldnames)
+        if missing:
+            raise ManifestError(
+                f"Transcript corrections are missing columns: {', '.join(sorted(missing))}"
+            )
+        corrections = list(reader)
+
+    by_id = {row["clip_id"]: dict(row) for row in rows}
+    seen: set[str] = set()
+    for correction in corrections:
+        clip_id = correction["clip_id"].strip()
+        if clip_id in seen:
+            raise ManifestError(f"Duplicate transcript correction: {clip_id}")
+        seen.add(clip_id)
+        if clip_id not in by_id:
+            raise ManifestError(f"Transcript correction refers to unknown clip_id: {clip_id}")
+        row = by_id[clip_id]
+        original = correction["original_reference_verbatim"].strip()
+        corrected = correction["corrected_reference_verbatim"].strip()
+        if row["reference_verbatim"] != original:
+            raise ManifestError(f"Clip {clip_id}: transcript correction source text has changed")
+        corrected_eval = normalize_text(corrected)
+        if not corrected or not corrected_eval:
+            raise ManifestError(f"Clip {clip_id}: corrected transcript is empty")
+        row["reference_verbatim"] = corrected
+        row["reference_eval"] = corrected_eval
+    return sorted(by_id.values(), key=lambda row: row["clip_id"])
+
+
 def _parse_string_list(value: Any, *, field: str, clip_id: str) -> list[str]:
     try:
         parsed = json.loads(value) if isinstance(value, str) else value

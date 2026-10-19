@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kingwana ASR manual review</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LOCAL RESEARCH TOOL</p>
+        <h1>Kingwana ASR manual review</h1>
+        <p class="subtitle">Validate model suggestions without changing the source corpus.</p>
+      </div>
+      <div class="progress-card">
+        <strong id="progress-count">Loading…</strong>
+        <span id="progress-detail">Review data</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="notice">
+        <strong>Private and local:</strong> this page binds to localhost and saves decisions directly
+        to the ignored review CSV. “Accept all five” validates only the five predictions visible in
+        that utterance card.
+      </section>
+
+      <nav id="batch-tabs" class="batch-tabs" aria-label="Review batches"></nav>
+      <div class="toolbar">
+        <label><input id="pending-only" type="checkbox" checked> Show pending only</label>
+        <span id="save-message" role="status"></span>
+      </div>
+      <section id="review-list" class="review-list" aria-live="polite"></section>
+    </main>
+
+    <template id="empty-template">
+      <div class="empty-state">
+        <h2>This batch is complete.</h2>
+        <p>Select another batch or disable “Show pending only” to inspect saved decisions.</p>
+      </div>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

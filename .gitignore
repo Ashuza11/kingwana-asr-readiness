@@ -10,6 +10,8 @@ data/manifests/*.csv
 !data/manifests/*.example.csv
 data/manifests/evaluation_*.provenance.json
 data/manifests/smoke_*.provenance.json
+data/manifests/common_voice_*.provenance.json
+data/manifests/tico19_*.provenance.json
 data/**/*.jsonl
 data/**/*.parquet
 data/**/*.tsv
@@ -49,6 +51,7 @@ reports/tables/**
 !reports/tables/.gitkeep
 reports/figures/**
 !reports/figures/.gitkeep
+reports/manual_review/**
 
 # Python and test artifacts.
 __pycache__/

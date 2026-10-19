@@ -8,6 +8,7 @@ import pytest
 
 from kingwana_asr.data.manifest import ManifestError
 from kingwana_asr.data.sautiforge import (
+    apply_transcript_corrections,
     build_manifest_rows,
     current_revisions,
     select_balanced_smoke_rows,
@@ -87,6 +88,49 @@ def test_build_rows_resolves_revision_and_normalizes_verbatim(tmp_path: Path) ->
     assert rows[0]["noise_level_raw"] == "low"
     assert rows[0]["quality_rating"] == "unknown"
     assert (manifest.parent / rows[0]["audio_path"]).resolve().is_file()
+
+
+def test_transcript_correction_preserves_source_expectation_and_renormalizes(
+    tmp_path: Path,
+) -> None:
+    corrections = tmp_path / "corrections.csv"
+    corrections.write_text(
+        "clip_id,original_reference_verbatim,corrected_reference_verbatim,notes\n"
+        "CLIP_TEST,Bei ni Mia!,Bei ni 100!,researcher verified audio\n",
+        encoding="utf-8",
+    )
+    rows = [
+        {
+            "clip_id": "CLIP_TEST",
+            "reference_verbatim": "Bei ni Mia!",
+            "reference_eval": "bei ni mia",
+        }
+    ]
+
+    corrected = apply_transcript_corrections(rows, corrections)
+
+    assert rows[0]["reference_verbatim"] == "Bei ni Mia!"
+    assert corrected[0]["reference_verbatim"] == "Bei ni 100!"
+    assert corrected[0]["reference_eval"] == "bei ni 100"
+
+
+def test_transcript_correction_rejects_changed_source(tmp_path: Path) -> None:
+    corrections = tmp_path / "corrections.csv"
+    corrections.write_text(
+        "clip_id,original_reference_verbatim,corrected_reference_verbatim,notes\n"
+        "CLIP_TEST,different text,corrected text,researcher verified audio\n",
+        encoding="utf-8",
+    )
+    rows = [
+        {
+            "clip_id": "CLIP_TEST",
+            "reference_verbatim": "source text",
+            "reference_eval": "source text",
+        }
+    ]
+
+    with pytest.raises(ManifestError, match="source text has changed"):
+        apply_transcript_corrections(rows, corrections)
 
 
 def test_current_revision_rejects_unknown_parent() -> None:
