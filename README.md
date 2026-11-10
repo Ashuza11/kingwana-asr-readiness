@@ -258,14 +258,16 @@ overlap caveat is documented separately. The optional Common Voice 27 `sw-kingwa
 deferred because Mozilla distributes the required Swahili release as a 20.89-GB archive rather than
 an independently downloadable variant subset.
 
-## Paza extension (non-primary)
+## Results
 
-[Microsoft's Paza](https://www.microsoft.com/en-us/research/blog/paza-introducing-automatic-speech-recognition-benchmarks-and-models-for-low-resource-languages/)
-Whisper-Large-v3-Turbo checkpoint was evaluated as a non-primary extension experiment on both
-the Kingwana evaluation corpus and TICO-19. It catastrophically hallucinates on both (685.80% WER
-on Kingwana, 270.71% WER on TICO-19) versus 68.63%–117.70% and 21.25%–40.53% respectively for the
-five primary models. Decoding configuration and inference precision were ruled out as causes via
-single-clip ablations; the model card's own duration-cap mitigation, even oracle-tuned, never
-closes the gap. The best-supported explanation is a dialect gap — Paza was fine-tuned only on six
-Kenyan languages and never on Congolese Swahili. Full results, methodology, and ablations are in
-[`reports/paza_extension_results.md`](reports/paza_extension_results.md).
+On the 500-clip Kingwana evaluation corpus, the five primary models range from 68.63% WER
+(OmniASR CTC 1B, best) to 117.70% WER (Whisper Large v3). On the 2,124-clip TICO-19 external
+comparison corpus, they range from 21.25% WER (OmniASR CTC 1B, best) to 40.53% WER (Whisper Large
+v3). [Microsoft's Paza](https://www.microsoft.com/en-us/research/blog/paza-introducing-automatic-speech-recognition-benchmarks-and-models-for-low-resource-languages/)
+Whisper-Large-v3-Turbo was separately evaluated as a non-primary extension (it was fine-tuned only
+on six Kenyan languages, never on Congolese Swahili) and catastrophically hallucinates on both
+corpora (685.80% WER raw on Kingwana, 270.71% WER raw on TICO-19); even its best oracle-tuned
+duration-cap configuration never beats any primary model on TICO-19. See
+[`reports/results_overview.md`](reports/results_overview.md) for the consolidated results table
+across all models and both corpora, with links to the full per-model, per-scenario, entity-
+preservation, and Paza-ablation detail.
