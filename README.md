@@ -12,6 +12,9 @@ after suitable gold labels are validated.
 > This repository evaluates existing ASR models on Kingwana small-business speech. It does not
 > yet train a new ASR model or implement Speech-to-SQL.
 
+The accompanying paper draft is at
+[`docs/AfriLang_AI_2026_Kingwana_paper.pdf`](docs/AfriLang_AI_2026_Kingwana_paper.pdf).
+
 ## Benchmark models
 
 The planned primary benchmark contains exactly these systems:
@@ -102,6 +105,11 @@ uv run python -m kingwana_asr.cli validate \
 Never silently replace a frozen benchmark. Add a new manifest version when data changes.
 
 ### Common Voice Kingwana comparison corpus
+
+**Status: implemented and tested, not yet executed.** The preparation code
+(`scripts/prepare_common_voice_test.py`, `src/kingwana_asr/data/common_voice.py`) is complete and
+covered by `tests/test_common_voice.py`, but no model has been run against this corpus and no
+local manifest exists yet; see [Current status](#current-status) for why it is deferred.
 
 The comparison experiment uses only the official Common Voice Swahili `test.tsv` rows whose
 `variant` value is exactly `sw-kingwana`. It does not use Common Voice train/dev rows or other
