@@ -48,6 +48,9 @@ class WhisperASRModel(ASRModel):
         if self.long_form_threshold_seconds <= 0:
             raise ValueError("Whisper long_form_threshold_seconds must be positive")
         self.configured_revision = config.get("revision")
+        self.dtype_override = config.get("dtype")
+        if self.dtype_override not in (None, "float16", "bfloat16", "float32"):
+            raise ValueError("Whisper dtype must be float16, bfloat16, or float32")
         self.requested_device = device
         self.model_revision: str | None = None
         self.device_spec: DeviceSpec | None = None
@@ -58,6 +61,12 @@ class WhisperASRModel(ASRModel):
     @property
     def is_loaded(self) -> bool:
         return self._pipeline is not None
+
+    @property
+    def effective_dtype(self) -> str:
+        if self.dtype_override:
+            return self.dtype_override
+        return self.device_spec.dtype if self.device_spec else ""
 
     @property
     def language_config(self) -> str:
@@ -72,7 +81,7 @@ class WhisperASRModel(ASRModel):
         torch, model_classes, pipeline_factory = _load_dependencies()
         model_class, processor_class = model_classes
         device_spec = select_device(self.requested_device, torch_module=torch)
-        torch_dtype = getattr(torch, device_spec.dtype)
+        torch_dtype = getattr(torch, self.dtype_override or device_spec.dtype)
         load_kwargs: dict[str, Any] = {
             "torch_dtype": torch_dtype,
             "low_cpu_mem_usage": True,

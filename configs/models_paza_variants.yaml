@@ -1,0 +1,38 @@
+schema_version: 1
+models:
+  paza_whisper_large_v3_turbo_wps2:
+    enabled: false
+    display_name: Paza Whisper Large v3 Turbo (cap 2 words/s)
+    hf_id: microsoft/paza-whisper-large-v3-turbo
+    family: derived
+    derived_from: paza_whisper_large_v3_turbo
+    postprocess:
+      type: duration_word_cap
+      words_per_second: 2.0
+  paza_whisper_large_v3_turbo_wps3:
+    enabled: false
+    display_name: Paza Whisper Large v3 Turbo (cap 3 words/s)
+    hf_id: microsoft/paza-whisper-large-v3-turbo
+    family: derived
+    derived_from: paza_whisper_large_v3_turbo
+    postprocess:
+      type: duration_word_cap
+      words_per_second: 3.0
+  paza_whisper_large_v3_turbo_wps4:
+    enabled: false
+    display_name: Paza Whisper Large v3 Turbo (cap 4 words/s)
+    hf_id: microsoft/paza-whisper-large-v3-turbo
+    family: derived
+    derived_from: paza_whisper_large_v3_turbo
+    postprocess:
+      type: duration_word_cap
+      words_per_second: 4.0
+  paza_whisper_large_v3_turbo_wps6:
+    enabled: false
+    display_name: Paza Whisper Large v3 Turbo (cap 6 words/s)
+    hf_id: microsoft/paza-whisper-large-v3-turbo
+    family: derived
+    derived_from: paza_whisper_large_v3_turbo
+    postprocess:
+      type: duration_word_cap
+      words_per_second: 6.0

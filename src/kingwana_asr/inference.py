@@ -130,7 +130,8 @@ def run_transcription(
                 error=error,
                 language_config=getattr(model, "language_config", ""),
                 device=getattr(device_spec, "device", "") if device_spec else "",
-                dtype=getattr(device_spec, "dtype", "") if device_spec else "",
+                dtype=getattr(model, "effective_dtype", None)
+                or (getattr(device_spec, "dtype", "") if device_spec else ""),
                 model_revision=getattr(model, "model_revision", None) or "",
                 timestamp=datetime.now(timezone.utc),
             )

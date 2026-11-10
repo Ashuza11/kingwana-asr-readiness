@@ -257,3 +257,15 @@ Final TICO-19 metrics and business-minus-TICO cross-corpus differences are docum
 overlap caveat is documented separately. The optional Common Voice 27 `sw-kingwana` experiment is
 deferred because Mozilla distributes the required Swahili release as a 20.89-GB archive rather than
 an independently downloadable variant subset.
+
+## Paza extension (non-primary)
+
+[Microsoft's Paza](https://www.microsoft.com/en-us/research/blog/paza-introducing-automatic-speech-recognition-benchmarks-and-models-for-low-resource-languages/)
+Whisper-Large-v3-Turbo checkpoint was evaluated as a non-primary extension experiment on both
+the Kingwana evaluation corpus and TICO-19. It catastrophically hallucinates on both (685.80% WER
+on Kingwana, 270.71% WER on TICO-19) versus 68.63%–117.70% and 21.25%–40.53% respectively for the
+five primary models. Decoding configuration and inference precision were ruled out as causes via
+single-clip ablations; the model card's own duration-cap mitigation, even oracle-tuned, never
+closes the gap. The best-supported explanation is a dialect gap — Paza was fine-tuned only on six
+Kenyan languages and never on Congolese Swahili. Full results, methodology, and ablations are in
+[`reports/paza_extension_results.md`](reports/paza_extension_results.md).

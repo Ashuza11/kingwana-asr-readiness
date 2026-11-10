@@ -24,6 +24,26 @@ EXPECTED_MODELS = {
         "wav2vec2",
         "sw",
     ),
+    "paza_whisper_large_v3_turbo": (
+        "microsoft/paza-whisper-large-v3-turbo",
+        "whisper",
+        "swahili",
+    ),
+    "paza_whisper_large_v3_turbo_beam5": (
+        "microsoft/paza-whisper-large-v3-turbo",
+        "whisper",
+        "swahili",
+    ),
+    "paza_whisper_large_v3_turbo_fp32": (
+        "microsoft/paza-whisper-large-v3-turbo",
+        "whisper",
+        "swahili",
+    ),
+    "paza_whisper_large_v3_turbo_fp32_beam5": (
+        "microsoft/paza-whisper-large-v3-turbo",
+        "whisper",
+        "swahili",
+    ),
 }
 
 
@@ -60,6 +80,16 @@ def test_registry_constructs_implemented_adapters() -> None:
     assert isinstance(omnilingual, OmnilingualASRModel)
     xlsr = create_model("xlsr_swahili", registry, device="cpu")
     assert isinstance(xlsr, XLSRASRModel)
+    paza = create_model("paza_whisper_large_v3_turbo", registry, device="cpu")
+    assert isinstance(paza, WhisperASRModel)
+    paza_beam5 = create_model("paza_whisper_large_v3_turbo_beam5", registry, device="cpu")
+    assert isinstance(paza_beam5, WhisperASRModel)
+    paza_fp32 = create_model("paza_whisper_large_v3_turbo_fp32", registry, device="cpu")
+    assert isinstance(paza_fp32, WhisperASRModel)
+    paza_fp32_beam5 = create_model(
+        "paza_whisper_large_v3_turbo_fp32_beam5", registry, device="cpu"
+    )
+    assert isinstance(paza_fp32_beam5, WhisperASRModel)
 
 
 def test_registry_rejects_unknown_model() -> None:

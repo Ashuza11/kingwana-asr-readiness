@@ -92,6 +92,30 @@ def test_whisper_rejects_invalid_pipeline_result(
         adapter.transcribe(audio)
 
 
+def test_whisper_dtype_override_reaches_model_load_and_effective_dtype(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dependencies = fake_dependencies({"text": "niko hapa"})
+    monkeypatch.setattr(whisper_module, "_load_dependencies", lambda: dependencies)
+    adapter = WhisperASRModel("paza_whisper_large_v3_turbo_fp32", {**config(), "dtype": "float32"})
+
+    adapter.load()
+
+    model_class = dependencies[1][0]
+    assert model_class.from_pretrained.call_args.kwargs["torch_dtype"] == "float32"
+    assert adapter.effective_dtype == "float32"
+
+
+def test_whisper_rejects_unsupported_dtype() -> None:
+    with pytest.raises(ValueError, match="dtype must be"):
+        WhisperASRModel("paza_whisper_large_v3_turbo", {**config(), "dtype": "int8"})
+
+
+def test_whisper_effective_dtype_defaults_to_device_dtype(tmp_path: Path) -> None:
+    adapter = WhisperASRModel("whisper_large_v3", config())
+    assert adapter.effective_dtype == ""
+
+
 def test_whisper_enables_timestamps_for_long_form_audio(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

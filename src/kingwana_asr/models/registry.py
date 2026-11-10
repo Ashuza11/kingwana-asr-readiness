@@ -48,4 +48,14 @@ def create_model(
         from kingwana_asr.models.xlsr import XLSRASRModel
 
         return XLSRASRModel(model_key, config, device=device)
+    if model_key in {
+        "paza_whisper_large_v3_turbo",
+        "paza_whisper_large_v3_turbo_beam5",
+        "paza_whisper_large_v3_turbo_fp32",
+        "paza_whisper_large_v3_turbo_fp32_beam5",
+    }:
+        from kingwana_asr.models.whisper import WhisperASRModel
+
+        return WhisperASRModel(model_key, config, device=device)
+
     raise ConfigurationError(f"Model adapter is not implemented yet: {model_key}")
